@@ -6,6 +6,7 @@ import android.widget.FrameLayout
 import android.widget.Toast
 
 class MainActivity : AppCompatActivity() {
+private var binding:ActivityMainBinding
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
