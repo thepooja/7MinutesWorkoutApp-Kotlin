@@ -1,4 +1,5 @@
 
+import com.example.a7minutesworkout.R
 import java.util.*
 
 /**
