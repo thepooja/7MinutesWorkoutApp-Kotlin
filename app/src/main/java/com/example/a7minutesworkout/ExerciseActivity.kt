@@ -1,6 +1,10 @@
 package com.example.a7minutesworkout
 
 import ExerciseModel
+import android.app.Dialog
+import android.content.Intent
+import android.media.MediaPlayer
+import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.CountDownTimer
@@ -8,7 +12,9 @@ import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.View
 import android.widget.Toast
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.a7minutesworkout.databinding.ActivityExerciseBinding
+import com.example.a7minutesworkout.databinding.DialogCustomBackConfirmationBinding
 import java.util.*
 import kotlin.collections.ArrayList
 
@@ -35,17 +41,19 @@ class ExerciseActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var exerciseList: ArrayList<ExerciseModel>? = null // We will initialize the list later.
     private var currentExercisePosition = -1 // Current Position of Exercise.
     // END
-
-    private var tts:TextToSpeech? = null
     // create a binding variable
-    private var binding: ActivityExerciseBinding? = null
+    private var binding:ActivityExerciseBinding? = null
+    private var tts: TextToSpeech? = null // Variable for Text to Speech
+
+    private var player: MediaPlayer? = null
+    private var exerciseAdapter: ExerciseStatusAdapter? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-//inflate the layout
         binding = ActivityExerciseBinding.inflate(layoutInflater)
 // pass in binding?.root in the content view
         setContentView(binding?.root)
-// then set support action bar and get toolBarExcerciser using the binding
+// then set support action bar and get toolBarExercise using the binding
 //variable
         setSupportActionBar(binding?.toolbarExercise)
 
@@ -53,15 +61,18 @@ class ExerciseActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             supportActionBar?.setDisplayHomeAsUpEnabled(true)
         }
         binding?.toolbarExercise?.setNavigationOnClickListener {
-            onBackPressed()
+            customDialogForBackButton()
         }
+
+        tts = TextToSpeech(this, this)
+        // END
         //Initializing and Assigning a default exercise list to our list variable
         // START
         exerciseList = Constants.defaultExerciseList()
         // END
-
-        tts = TextToSpeech(this,this)
         setupRestView()
+        setupExerciseStatusRecyclerView()
+        // END
     }
 
 
@@ -71,18 +82,22 @@ class ExerciseActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
      * Function is used to set the timer for REST.
      */
     private fun setupRestView() {
-// TODO (Step 3- changing the upcoming exercise label and name visibility.)
 
-try {
+        /**
+         * Here the sound file is added in to "raw" folder in resources.
+         * And played using MediaPlayer. MediaPlayer class can be used to control playback
+         * of audio/video files and streams.
+         */
+        try {
             val soundURI =
-                Uri.parse("android.resource://com.example.a7minutesworkout/" + R.raw.press_start)
+                Uri.parse("android.resource://eu.tutorials.a7_minutesworkoutapp/" + R.raw.press_start)
             player = MediaPlayer.create(applicationContext, soundURI)
             player?.isLooping = false // Sets the player to be looping or non-looping.
             player?.start() // Starts Playback.
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        
+        // END
         binding?.flRestView?.visibility = View.VISIBLE
         binding?.tvTitle?.visibility = View.VISIBLE
         binding?.upcomingLabel?.visibility = View.VISIBLE
@@ -99,7 +114,7 @@ try {
             restProgress = 0
         }
 
-        // TODO (Step 2 - Setting the upcoming exercise name in the UI element.)
+        // Setting the upcoming exercise name in the UI element
         // START
         // Here we have set the upcoming exercise name to the text view
         // Here as the current position is -1 by default so to selected from the list it should be 0 so we have increased it by +1.
@@ -137,6 +152,10 @@ try {
             override fun onFinish() {
                 // When the 10 seconds will complete this will be executed.
                 currentExercisePosition++
+
+                exerciseList!![currentExercisePosition].setisSelected(true) // Current Item is selected
+                exerciseAdapter!!.notifyDataSetChanged() // Notified the current item to adapter class to reflect it into UI.
+                // END
                 setupExerciseView()
             }
         }.start()
@@ -150,8 +169,6 @@ try {
      * Function is used to set the progress of the timer using the progress for Exercise View.
      */
     private fun setupExerciseView() {
-// TODO (Step 4- changing the upcoming exercise label and name visibility.)
-        // Here according to the view make it visible as this is Exercise View so exercise view is visible and rest view is not.
         binding?.flRestView?.visibility = View.INVISIBLE
         binding?.tvTitle?.visibility = View.INVISIBLE
         binding?.tvUpcomingExerciseName?.visibility = View.INVISIBLE
@@ -170,6 +187,7 @@ try {
         }
 
         speakOut(exerciseList!![currentExercisePosition].getname())
+        // END
         // Setting up the current exercise name and imageview to the UI element.
         // START
         /**
@@ -201,17 +219,16 @@ try {
             }
 
             override fun onFinish() {
-                // Updating the view after completing the 30 seconds exercise
-                // START
+
                 if (currentExercisePosition < exerciseList?.size!! - 1) {
+                    exerciseList!![currentExercisePosition].setisSelected(false) // exercise is completed so selection is set to false
+                    exerciseList!![currentExercisePosition].setIsCompleted(true) // updating in the list that this exercise is completed
+                    exerciseAdapter?.notifyDataSetChanged()
                     setupRestView()
                 } else {
-
-                    Toast.makeText(
-                        this@ExerciseActivity,
-                        "Congratulations! You have completed the 7 minutes workout.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    finish()
+                    val intent = Intent(this@ExerciseActivity,FinishActivity::class.java)
+                    startActivity(intent)
                 }
                 // END
             }
@@ -227,39 +244,85 @@ try {
      * Here in the Destroy function we will reset the rest timer if it is running.
      */
     public override fun onDestroy() {
-        super.onDestroy()
         if (restTimer != null) {
             restTimer?.cancel()
             restProgress = 0
         }
 
-        if(exerciseTimer!= null){
-            exerciseTimer?.cancel()
-            exerciseProgress = 0
-        }
-
-        if(tts!= null){
+        // Shutting down the Text to Speech feature when activity is destroyed
+        // START
+        if (tts != null) {
             tts!!.stop()
             tts!!.shutdown()
         }
+
+        if(player != null){
+            player!!.stop()
+        }
+        // END
+        super.onDestroy()
         binding = null
     }
 
-    // TextToSpeech
+    // START
+    /**
+     * This the TextToSpeech override function
+     *
+     * Called to signal the completion of the TextToSpeech engine initialization.
+     */
     override fun onInit(status: Int) {
-    if(status == TextToSpeech.SUCCESS){
-        val result = tts?.setLanguage(Locale.ENGLISH)
 
-        if(result==TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED){
-            Log.e("TTS", "The language specified is not supported ")
+        if (status == TextToSpeech.SUCCESS) {
+            // set US English as language for tts
+            val result = tts?.setLanguage(Locale.US)
+
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Log.e("TTS", "The Language specified is not supported!")
+            }
+
+        } else {
+            Log.e("TTS", "Initialization Failed!")
         }
+        // END
     }
-        else{
-        Log.e("TTS", "Initialization Failed!", )
+
+    /**
+     * Function is used to speak the text that we pass to it.
+     */
+    private fun speakOut(text: String) {
+        tts!!.speak(text, TextToSpeech.QUEUE_FLUSH, null, "")
     }
+
+    private fun setupExerciseStatusRecyclerView() {
+
+        // Defining a layout manager for the recycle view
+        // Here we have used a LinearLayout Manager with horizontal scroll.
+        binding?.rvExerciseStatus?.layoutManager =
+            LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+
+        // As the adapter expects the exercises list and context so initialize it passing it.
+        exerciseAdapter = ExerciseStatusAdapter(exerciseList!!)
+
+        // Adapter class is attached to recycler view
+        binding?.rvExerciseStatus?.adapter = exerciseAdapter
     }
-    private fun speakOut(text:String){
-        tts!!.speak(text,TextToSpeech.QUEUE_FLUSH,null,"")
+
+    private fun customDialogForBackButton() {
+        val customDialog = Dialog(this)
+
+        val dialogBinding = DialogCustomBackConfirmationBinding.inflate(layoutInflater)
+
+        customDialog.setContentView(dialogBinding.root)
+        customDialog.setCanceledOnTouchOutside(false)
+        dialogBinding.tvYes.setOnClickListener {
+            this@ExerciseActivity.finish()
+            customDialog.dismiss() // Dialog will be dismissed
+        }
+        dialogBinding.tvNo.setOnClickListener {
+            customDialog.dismiss()
+        }
+        //Start the dialog and display it on screen.
+        customDialog.show()
     }
-    //END
+    // END
 }
