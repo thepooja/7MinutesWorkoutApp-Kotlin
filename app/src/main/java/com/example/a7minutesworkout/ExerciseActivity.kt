@@ -72,6 +72,17 @@ class ExerciseActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
      */
     private fun setupRestView() {
 // TODO (Step 3- changing the upcoming exercise label and name visibility.)
+
+try {
+            val soundURI =
+                Uri.parse("android.resource://com.example.a7minutesworkout/" + R.raw.press_start)
+            player = MediaPlayer.create(applicationContext, soundURI)
+            player?.isLooping = false // Sets the player to be looping or non-looping.
+            player?.start() // Starts Playback.
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        
         binding?.flRestView?.visibility = View.VISIBLE
         binding?.tvTitle?.visibility = View.VISIBLE
         binding?.upcomingLabel?.visibility = View.VISIBLE
